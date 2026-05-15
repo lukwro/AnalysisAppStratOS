@@ -5,9 +5,11 @@ import os
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from .company import CompanyValidationError, create_company_record
-from .db import init_db, insert_company
+from .db import fetch_raw_records_by_nip, init_db, insert_company
+from .nip import NipValidationError, validate_nip
 
 
 FRONTEND_FILE = Path(__file__).resolve().parents[2] / "frontend" / "index.html"
@@ -15,7 +17,7 @@ FRONTEND_FILE = Path(__file__).resolve().parents[2] / "frontend" / "index.html"
 
 class CompanyHandler(BaseHTTPRequestHandler):
     def _json_response(self, status: HTTPStatus, payload: dict) -> None:
-        raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        raw = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
@@ -33,6 +35,24 @@ class CompanyHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path in ("/", "/index.html"):
             self._html_response(FRONTEND_FILE.read_text(encoding="utf-8"))
+            return
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/raw-records":
+            nip_values = parse_qs(parsed.query).get("nip")
+            nip_value = nip_values[0] if nip_values else None
+            try:
+                nip = validate_nip(nip_value)
+                records = fetch_raw_records_by_nip(nip)
+            except NipValidationError as exc:
+                self._json_response(HTTPStatus.BAD_REQUEST, {"message": str(exc)})
+                return
+            except Exception:
+                self._json_response(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"message": "Blad odczytu z bazy danych."},
+                )
+                return
+            self._json_response(HTTPStatus.OK, {"nip": nip, "records": records})
             return
         self._json_response(HTTPStatus.NOT_FOUND, {"message": "Not found"})
 

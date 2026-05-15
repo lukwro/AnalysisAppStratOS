@@ -34,6 +34,22 @@
         <tr><td id="result-name"></td></tr>
       </tbody>
     </table>
+
+    <hr />
+
+    <h2>TASK-4: Wyszukiwanie raw_records po NIP</h2>
+    <form id="nip-form">
+      <label for="nip-input">NIP</label><br />
+      <input id="nip-input" name="nip" type="text" maxlength="20" required />
+      <button type="submit">Pobierz raw_records</button>
+    </form>
+
+    <table id="raw-table" hidden>
+      <thead>
+        <tr id="raw-head-row"></tr>
+      </thead>
+      <tbody id="raw-body"></tbody>
+    </table>
   </div>
 
   <script>
@@ -42,6 +58,21 @@
     const errorBox = document.getElementById('error');
     const table = document.getElementById('result-table');
     const resultName = document.getElementById('result-name');
+    const nipForm = document.getElementById('nip-form');
+    const nipInput = document.getElementById('nip-input');
+    const rawTable = document.getElementById('raw-table');
+    const rawHeadRow = document.getElementById('raw-head-row');
+    const rawBody = document.getElementById('raw-body');
+
+    function normalizeCellValue(value) {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      if (typeof value === 'object') {
+        return JSON.stringify(value);
+      }
+      return String(value);
+    }
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -62,6 +93,54 @@
 
         resultName.textContent = payload.name;
         table.hidden = false;
+      } catch (error) {
+        errorBox.textContent = error.message;
+      }
+    });
+
+    nipForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorBox.textContent = '';
+      rawTable.hidden = true;
+      rawHeadRow.innerHTML = '';
+      rawBody.innerHTML = '';
+
+      try {
+        const response = await fetch(`/api/raw-records?nip=${encodeURIComponent(nipInput.value)}`);
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.message || 'Wystapil blad odczytu.');
+        }
+
+        const records = Array.isArray(payload.records) ? payload.records : [];
+        if (records.length === 0) {
+          throw new Error('Brak rekordow raw_records dla podanego NIP.');
+        }
+
+        const columns = Array.from(
+          records.reduce((acc, row) => {
+            Object.keys(row).forEach((key) => acc.add(key));
+            return acc;
+          }, new Set())
+        );
+
+        columns.forEach((column) => {
+          const th = document.createElement('th');
+          th.textContent = column;
+          rawHeadRow.appendChild(th);
+        });
+
+        records.forEach((record) => {
+          const tr = document.createElement('tr');
+          columns.forEach((column) => {
+            const td = document.createElement('td');
+            td.textContent = normalizeCellValue(record[column]);
+            tr.appendChild(td);
+          });
+          rawBody.appendChild(tr);
+        });
+
+        rawTable.hidden = false;
       } catch (error) {
         errorBox.textContent = error.message;
       }

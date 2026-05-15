@@ -170,3 +170,41 @@ Status: DONE (dev scope)
 
 Powiązane test case’y:
 TC-DB-RAW-INIT-001, TC-DB-RAW-CONSTRAINT-001, TC-DB-RAW-INDEX-001, TC-DB-RAW-UNIQUE-CHECKSUM-001, TC-DB-RAW-COMPAT-001
+
+
+[TASK-4] Wyszukiwanie i podglad raw_records po NIP
+
+Cel biznesowy:
+Uzytkownik moze wpisac NIP w interfejsie i zobaczyc wszystkie dane z tabeli `raw_records` powiazane z tym NIP.
+
+Zakres:
+
+- Dodanie endpointu `GET /api/raw-records?nip=...`.
+- Walidacja NIP (normalizacja i 10 cyfr).
+- Odczyt `raw_records` z DB po NIP:
+  - `metadata_json->>'nip'`,
+  - `external_id`.
+- Renderowanie wszystkich pol rekordow RAW w tabeli frontendu.
+- Obsluga bledow 400/500 i komunikatow dla uzytkownika.
+
+Kryteria akceptacji (AC):
+
+- [x] Dla poprawnego NIP API zwraca `200` i liste rekordow.
+- [x] Dla niepoprawnego NIP API zwraca `400`.
+- [x] Frontend pobiera dane po NIP i wyswietla wszystkie pola rekordow.
+- [x] Dla braku danych frontend pokazuje czytelny komunikat.
+- [x] Dodane testy jednostkowe i handlera HTTP dla nowego flow.
+
+Definition of Done (DoD):
+
+- [x] Kod backendu endpointu GET
+- [x] Walidacja NIP
+- [x] Zapytanie DB po NIP
+- [x] Kod frontendu do wyswietlania `raw_records`
+- [x] Testy backendowe
+- [ ] Review/merge
+
+Status: DONE (dev scope)
+
+Powiązane test case’y:
+TC-API-RAW-BY-NIP-001, TC-API-RAW-BY-NIP-002, TC-UI-RAW-BY-NIP-001, TC-UI-RAW-BY-NIP-002

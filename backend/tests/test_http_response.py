@@ -100,3 +100,57 @@ def test_do_post_returns_500_when_db_insert_fails(monkeypatch) -> None:
     assert json.loads(captured["body"].decode("utf-8")) == {
         "message": "Blad zapisu do bazy danych."
     }
+
+
+def _build_get_handler(path: str):
+    handler = _FakeHandler.__new__(_FakeHandler)
+    captured = {}
+
+    def send_response(code):
+        captured["status"] = code
+
+    def send_header(name, value):
+        captured.setdefault("headers", {})[name] = value
+
+    def end_headers():
+        captured["ended"] = True
+
+    class _Writer:
+        def write(self, data):
+            captured["body"] = data
+
+    handler.path = path
+    handler.wfile = _Writer()
+    handler.send_response = send_response
+    handler.send_header = send_header
+    handler.end_headers = end_headers
+    return handler, captured
+
+
+def test_do_get_raw_records_returns_records(monkeypatch) -> None:
+    def fake_fetch_raw_records_by_nip(nip: str):
+        assert nip == "1234563218"
+        return [
+            {"id": "r1", "external_id": "1234563218", "record_type": "financial_report"},
+            {"id": "r2", "external_id": "1234563218", "record_type": "market_news"},
+        ]
+
+    monkeypatch.setattr(main, "fetch_raw_records_by_nip", fake_fetch_raw_records_by_nip)
+    handler, captured = _build_get_handler("/api/raw-records?nip=123-456-32-18")
+
+    handler.do_GET()
+
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert captured["status"] == 200
+    assert payload["nip"] == "1234563218"
+    assert len(payload["records"]) == 2
+
+
+def test_do_get_raw_records_returns_400_for_invalid_nip() -> None:
+    handler, captured = _build_get_handler("/api/raw-records?nip=123")
+
+    handler.do_GET()
+
+    assert captured["status"] == 400
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert payload["message"] == "NIP musi miec dokladnie 10 cyfr."

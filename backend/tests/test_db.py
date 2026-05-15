@@ -131,3 +131,34 @@ def test_raw_schema_contains_critical_indexes():
     assert "uq_raw_records_checksum_source" in ddl
     assert "idx_raw_records_payload_json_gin" in ddl
     assert "idx_raw_records_metadata_json_gin" in ddl
+
+
+def test_fetch_raw_records_by_nip_returns_rows(monkeypatch):
+    class _FetchCursor(_FakeCursor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rows = [{"id": "a1"}, {"id": "a2"}]
+
+        def fetchall(self):
+            return self.rows
+
+    class _FetchConnection(_FakeConnection):
+        def __init__(self) -> None:
+            self.cursor_obj = _FetchCursor()
+            self.committed = False
+
+        def cursor(self, row_factory=None):
+            return self.cursor_obj
+
+    fake_conn = _FetchConnection()
+
+    def fake_get_db_connection():
+        return fake_conn
+
+    monkeypatch.setattr(db, "get_db_connection", fake_get_db_connection)
+
+    result = db.fetch_raw_records_by_nip("1234567890")
+
+    assert result == [{"id": "a1"}, {"id": "a2"}]
+    executed_sql = "\n".join(fake_conn.cursor_obj.executed)
+    assert "FROM raw_records" in executed_sql

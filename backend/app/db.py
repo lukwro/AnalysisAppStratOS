@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 import psycopg
+from psycopg.rows import dict_row
 
 
 RAW_SCHEMA_STATEMENTS = [
@@ -208,3 +209,19 @@ def insert_company(name: str) -> None:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO companies (name) VALUES (%s)", (name,))
         conn.commit()
+
+
+def fetch_raw_records_by_nip(nip: str) -> list[dict]:
+    with get_db_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM raw_records
+                WHERE regexp_replace(COALESCE(metadata_json->>'nip', ''), '\D', '', 'g') = %s
+                   OR regexp_replace(COALESCE(external_id, ''), '\D', '', 'g') = %s
+                ORDER BY received_at DESC
+                """,
+                (nip, nip),
+            )
+            return list(cur.fetchall())

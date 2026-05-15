@@ -241,3 +241,76 @@ API zwraca `201`.
 Rekord jest poprawnie zapisany w `companies`.
 
 Status: TODO
+
+
+[TC-API-RAW-BY-NIP-001] API zwraca rekordy RAW dla poprawnego NIP
+Cel:
+Weryfikacja endpointu `GET /api/raw-records` dla poprawnego NIP.
+
+Warunki wstępne:
+Backend uruchomiony.
+W `raw_records` istnieją rekordy powiazane z NIP.
+
+Kroki:
+1. Wyślij `GET /api/raw-records?nip=123-456-32-18`.
+
+Oczekiwany rezultat:
+Status HTTP: `200`.
+Body zawiera `nip` po normalizacji (`1234563218`) oraz tablicę `records`.
+
+Status: TODO
+
+
+[TC-API-RAW-BY-NIP-002] API odrzuca niepoprawny NIP
+Cel:
+Weryfikacja walidacji parametru `nip`.
+
+Warunki wstępne:
+Backend uruchomiony.
+
+Kroki:
+1. Wyślij `GET /api/raw-records?nip=123`.
+
+Oczekiwany rezultat:
+Status HTTP: `400`.
+Komunikat: `NIP musi miec dokladnie 10 cyfr.`.
+
+Status: TODO
+
+
+[TC-UI-RAW-BY-NIP-001] Frontend renderuje wszystkie pola raw_records
+Cel:
+Weryfikacja prezentacji danych RAW po wyszukaniu po NIP.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+API zwraca rekordy dla testowego NIP.
+
+Kroki:
+1. Wpisz poprawny NIP.
+2. Kliknij `Pobierz raw_records`.
+
+Oczekiwany rezultat:
+Widoczna jest tabela z kolumnami odpowiadajacymi polom rekordow.
+Widoczne sa wszystkie zwrocone rekordy.
+
+Status: TODO
+
+
+[TC-UI-RAW-BY-NIP-002] Frontend pokazuje komunikat przy braku danych
+Cel:
+Weryfikacja obslugi pustego wyniku wyszukiwania.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+Brak rekordow dla podanego NIP.
+
+Kroki:
+1. Wpisz poprawny NIP bez danych w `raw_records`.
+2. Kliknij `Pobierz raw_records`.
+
+Oczekiwany rezultat:
+Tabela wynikow nie jest wyswietlana.
+Uzytkownik widzi komunikat: `Brak rekordow raw_records dla podanego NIP.`.
+
+Status: TODO
