@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -225,3 +226,186 @@ def fetch_raw_records_by_nip(nip: str) -> list[dict]:
                 (nip, nip),
             )
             return list(cur.fetchall())
+
+
+def ensure_source_app(code: str, name: str, app_type: str = "external") -> str:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO source_apps (code, name, app_type)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (code) DO UPDATE
+                SET name = EXCLUDED.name,
+                    app_type = EXCLUDED.app_type,
+                    updated_at = now()
+                RETURNING id
+                """,
+                (code, name, app_type),
+            )
+            source_app_id = cur.fetchone()[0]
+        conn.commit()
+    return str(source_app_id)
+
+
+def ensure_data_source(
+    source_app_id: str,
+    code: str,
+    name: str,
+    base_url: str,
+    auth_type: str = "api_key",
+) -> str:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO data_sources (source_app_id, code, name, source_type, base_url, auth_type)
+                VALUES (%s, %s, %s, 'api', %s, %s)
+                ON CONFLICT (source_app_id, code) DO UPDATE
+                SET name = EXCLUDED.name,
+                    base_url = EXCLUDED.base_url,
+                    auth_type = EXCLUDED.auth_type,
+                    updated_at = now()
+                RETURNING id
+                """,
+                (source_app_id, code, name, base_url, auth_type),
+            )
+            data_source_id = cur.fetchone()[0]
+        conn.commit()
+    return str(data_source_id)
+
+
+def create_ingestion_batch(
+    source_app_id: str,
+    data_source_id: str,
+    trigger_type: str,
+    batch_key: str | None,
+    metadata_json: dict[str, Any],
+) -> str:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO ingestion_batches (
+                    source_app_id, data_source_id, trigger_type, batch_key, status, started_at, metadata_json
+                )
+                VALUES (%s, %s, %s, %s, 'processing', now(), %s)
+                ON CONFLICT (source_app_id, batch_key) DO UPDATE
+                SET trigger_type = EXCLUDED.trigger_type,
+                    status = 'processing',
+                    started_at = now(),
+                    metadata_json = EXCLUDED.metadata_json
+                RETURNING id
+                """,
+                (source_app_id, data_source_id, trigger_type, batch_key, metadata_json),
+            )
+            batch_id = cur.fetchone()[0]
+        conn.commit()
+    return str(batch_id)
+
+
+def finalize_ingestion_batch(
+    batch_id: str,
+    status: str,
+    record_count: int,
+    error_count: int,
+    metadata_json: dict[str, Any],
+) -> None:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE ingestion_batches
+                SET status = %s,
+                    record_count = %s,
+                    error_count = %s,
+                    finished_at = now(),
+                    metadata_json = %s
+                WHERE id = %s
+                """,
+                (status, record_count, error_count, metadata_json, batch_id),
+            )
+        conn.commit()
+
+
+def insert_raw_record_json(
+    *,
+    source_app_id: str,
+    data_source_id: str,
+    ingestion_batch_id: str,
+    external_id: str,
+    record_type: str,
+    payload_json: dict[str, Any],
+    checksum_sha256: str,
+    metadata_json: dict[str, Any],
+) -> bool:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO raw_records (
+                    source_app_id,
+                    data_source_id,
+                    ingestion_batch_id,
+                    external_id,
+                    record_type,
+                    content_type,
+                    content_format,
+                    payload_json,
+                    checksum_sha256,
+                    metadata_json,
+                    collected_at
+                )
+                VALUES (%s, %s, %s, %s, %s, 'application/json', 'json', %s, %s, %s, now())
+                ON CONFLICT (source_app_id, checksum_sha256) DO NOTHING
+                RETURNING id
+                """,
+                (
+                    source_app_id,
+                    data_source_id,
+                    ingestion_batch_id,
+                    external_id,
+                    record_type,
+                    payload_json,
+                    checksum_sha256,
+                    metadata_json,
+                ),
+            )
+            inserted = cur.fetchone() is not None
+        conn.commit()
+    return inserted
+
+
+def insert_raw_record_error(
+    *,
+    ingestion_batch_id: str,
+    stage: str,
+    error_code: str,
+    error_message: str,
+    error_details_json: dict[str, Any],
+    raw_record_id: str | None = None,
+) -> None:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO raw_record_errors (
+                    raw_record_id,
+                    ingestion_batch_id,
+                    stage,
+                    error_code,
+                    error_message,
+                    error_details_json
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    raw_record_id,
+                    ingestion_batch_id,
+                    stage,
+                    error_code,
+                    error_message,
+                    error_details_json,
+                ),
+            )
+        conn.commit()

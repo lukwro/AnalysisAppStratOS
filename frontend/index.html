@@ -106,7 +106,12 @@
       rawBody.innerHTML = '';
 
       try {
-        const response = await fetch(`/api/raw-records?nip=${encodeURIComponent(nipInput.value)}`);
+        const normalizedNip = (nipInput.value || '').replace(/\D/g, '');
+        if (normalizedNip.length !== 10) {
+          throw new Error('NIP musi miec dokladnie 10 cyfr.');
+        }
+
+        const response = await fetch(`/api/raw-records?nip=${encodeURIComponent(normalizedNip)}`);
         const payload = await response.json();
         if (!response.ok) {
           throw new Error(payload.message || 'Wystapil blad odczytu.');
@@ -114,7 +119,7 @@
 
         const records = Array.isArray(payload.records) ? payload.records : [];
         if (records.length === 0) {
-          throw new Error('Brak rekordow raw_records dla podanego NIP.');
+          throw new Error('Brak danych RAW dla podanego NIP.');
         }
 
         const columns = Array.from(

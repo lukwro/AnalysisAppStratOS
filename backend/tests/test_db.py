@@ -63,6 +63,7 @@ def test_get_db_connection_falls_back_to_pg_env_vars(monkeypatch):
 class _FakeCursor:
     def __init__(self) -> None:
         self.executed: list[str] = []
+        self.last_params = None
 
     def __enter__(self):
         return self
@@ -72,6 +73,10 @@ class _FakeCursor:
 
     def execute(self, statement: str, _params=None) -> None:
         self.executed.append(statement)
+        self.last_params = _params
+
+    def fetchone(self):
+        return None
 
 
 class _FakeConnection:
@@ -162,3 +167,37 @@ def test_fetch_raw_records_by_nip_returns_rows(monkeypatch):
     assert result == [{"id": "a1"}, {"id": "a2"}]
     executed_sql = "\n".join(fake_conn.cursor_obj.executed)
     assert "FROM raw_records" in executed_sql
+
+
+def test_insert_raw_record_json_uses_on_conflict_do_nothing(monkeypatch):
+    class _InsertCursor(_FakeCursor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.return_inserted = True
+
+        def fetchone(self):
+            return ("new-id",) if self.return_inserted else None
+
+    class _InsertConnection(_FakeConnection):
+        def __init__(self) -> None:
+            self.cursor_obj = _InsertCursor()
+            self.committed = False
+
+    fake_conn = _InsertConnection()
+
+    monkeypatch.setattr(db, "get_db_connection", lambda: fake_conn)
+
+    inserted = db.insert_raw_record_json(
+        source_app_id="s1",
+        data_source_id="d1",
+        ingestion_batch_id="b1",
+        external_id="ext1",
+        record_type="financial_metric",
+        payload_json={"metric_name": "Cash ratio"},
+        checksum_sha256="abc123",
+        metadata_json={"page": 1},
+    )
+
+    assert inserted is True
+    executed_sql = "\n".join(fake_conn.cursor_obj.executed)
+    assert "ON CONFLICT (source_app_id, checksum_sha256) DO NOTHING" in executed_sql

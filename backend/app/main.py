@@ -9,6 +9,8 @@ from urllib.parse import parse_qs, urlparse
 
 from .company import CompanyValidationError, create_company_record
 from .db import fetch_raw_records_by_nip, init_db, insert_company
+from .external_import import import_external_metrics
+from .external_metrics import ExternalMetricsError
 from .nip import NipValidationError, validate_nip
 
 
@@ -57,12 +59,34 @@ class CompanyHandler(BaseHTTPRequestHandler):
         self._json_response(HTTPStatus.NOT_FOUND, {"message": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/api/company":
+        if self.path not in ("/api/company", "/api/external/metrics/import"):
             self._json_response(HTTPStatus.NOT_FOUND, {"message": "Not found"})
             return
 
         content_length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(content_length)
+
+        if self.path == "/api/external/metrics/import":
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+                result = import_external_metrics(payload)
+            except json.JSONDecodeError:
+                self._json_response(
+                    HTTPStatus.BAD_REQUEST, {"message": "Niepoprawny JSON."}
+                )
+                return
+            except ExternalMetricsError as exc:
+                status = HTTPStatus.BAD_REQUEST if exc.status_code == 400 else HTTPStatus.BAD_GATEWAY
+                self._json_response(status, {"message": str(exc), "details": exc.details})
+                return
+            except Exception:
+                self._json_response(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"message": "Blad importu metryk z external API."},
+                )
+                return
+            self._json_response(HTTPStatus.OK, result)
+            return
 
         try:
             payload = json.loads(body.decode("utf-8"))

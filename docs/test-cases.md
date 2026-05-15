@@ -314,3 +314,152 @@ Tabela wynikow nie jest wyswietlana.
 Uzytkownik widzi komunikat: `Brak rekordow raw_records dla podanego NIP.`.
 
 Status: TODO
+
+
+[TC-EXT-METRICS-IMPORT-001] Import metryk external API zapisuje raw_records
+Cel:
+Weryfikacja podstawowego scenariusza importu danych metryk finansowych.
+
+Warunki wstępne:
+Backend uruchomiony.
+Skonfigurowany klucz API do external service.
+External API zwraca status `200` i `items`.
+
+Kroki:
+1. Wywołaj endpoint triggera importu z parametrami `page`, `page_size`, opcjonalnie `nip`, `year`.
+2. Sprawdź rekordy zapisane w `raw_records`.
+
+Oczekiwany rezultat:
+Import kończy się sukcesem.
+Każdy element `items[]` jest zapisany jako rekord `raw_records` z `record_type=financial_metric`.
+
+Status: TODO
+
+
+[TC-EXT-METRICS-IMPORT-002] Poprawny zapis ingestion_batches
+Cel:
+Weryfikacja pełnego audytu ingestu.
+
+Warunki wstępne:
+Import external metrics uruchomiony.
+
+Kroki:
+1. Uruchom import metryk.
+2. Odczytaj wpis w `ingestion_batches`.
+
+Oczekiwany rezultat:
+Batch posiada `status=completed` dla sukcesu.
+`record_count` odpowiada liczbie zapisanych `raw_records`.
+`metadata_json` zawiera `page`, `page_size`, `nip`, `year`, `total`.
+
+Status: TODO
+
+
+[TC-EXT-METRICS-ERROR-001] Obsługa błędów external API
+Cel:
+Weryfikacja obsługi statusów `400/401/403/404/500`.
+
+Warunki wstępne:
+Możliwość zasymulowania odpowiedzi błędnej external API.
+
+Kroki:
+1. Wywołaj import i wymuś odpowiedź błędną API (np. `401`).
+2. Sprawdź `ingestion_batches` i `raw_record_errors`.
+
+Oczekiwany rezultat:
+Batch ma `status=failed`.
+W `raw_record_errors` zapisany jest wpis z `stage=fetch` i odpowiednim `error_code`.
+
+Status: TODO
+
+
+[TC-EXT-METRICS-IDEMPOTENCY-001] Idempotencja importu po checksum
+Cel:
+Weryfikacja, że ponowne pobranie tego samego payloadu nie dubluje danych.
+
+Warunki wstępne:
+Dostępny ten sam payload z external API w dwóch kolejnych importach.
+
+Kroki:
+1. Uruchom import pierwszy raz.
+2. Uruchom import drugi raz z tymi samymi parametrami i odpowiedzią.
+3. Porównaj liczbę rekordów i checksumy.
+
+Oczekiwany rezultat:
+Brak duplikatów dla tego samego `source_app_id` + `checksum_sha256`.
+
+Status: TODO
+
+
+[TC-EXT-METRICS-MAPPING-001] Poprawne mapowanie pól metryk do RAW
+Cel:
+Weryfikacja mapowania danych z external API na strukturę RAW.
+
+Warunki wstępne:
+Import z odpowiedzią `200` zawierającą przykładowe `items`.
+
+Kroki:
+1. Wykonaj import.
+2. Sprawdź `payload_json` i `metadata_json` zapisanych rekordów.
+
+Oczekiwany rezultat:
+`payload_json` zawiera dane metryki (`metric_group`, `metric_name`, `value`, `rounded_value`, `unit`, `status`, `year`).
+`metadata_json` zawiera kontekst requestu (`nip`, `page`, `page_size`, `total`).
+
+Status: TODO
+
+
+[TC-API-RAW-BY-NIP-003] API zwraca pustą listę dla poprawnego NIP bez danych
+Cel:
+Weryfikacja pustego wyniku wyszukiwania po poprawnym NIP.
+
+Warunki wstępne:
+Backend uruchomiony.
+Brak rekordów `raw_records` dla wskazanego NIP.
+
+Kroki:
+1. Wyślij `GET /api/raw-records?nip=9999999999`.
+
+Oczekiwany rezultat:
+Status HTTP: `200`.
+Body zawiera poprawny `nip` i `records: []`.
+
+Status: TODO
+
+
+[TC-UI-RAW-BY-NIP-003] UI pokazuje tabelę dla NIP z danymi
+Cel:
+Weryfikacja stanu sukcesu wyszukiwania po NIP.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+API zwraca co najmniej 1 rekord dla testowego NIP.
+
+Kroki:
+1. Wpisz poprawny NIP z istniejącymi danymi.
+2. Kliknij `Pobierz raw_records`.
+
+Oczekiwany rezultat:
+Tabela wynikowa jest widoczna.
+Komunikat o braku danych nie jest widoczny.
+
+Status: TODO
+
+
+[TC-UI-RAW-BY-NIP-004] UI pokazuje komunikat o braku danych dla poprawnego NIP
+Cel:
+Weryfikacja stanu pustego wyniku wyszukiwania.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+API zwraca pustą listę `records` dla wskazanego NIP.
+
+Kroki:
+1. Wpisz poprawny NIP bez danych.
+2. Kliknij `Pobierz raw_records`.
+
+Oczekiwany rezultat:
+Widoczny komunikat: `Brak danych RAW dla podanego NIP.`.
+Tabela wynikowa nie jest widoczna.
+
+Status: TODO

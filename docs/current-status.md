@@ -3,6 +3,9 @@
 - TASK-1: DONE
 - TASK-2: DONE
 - TASK-3: DONE (dev scope)
+- TASK-4: DONE (dev scope)
+- TASK-5: DONE (dev scope)
+- TASK-6: DONE (dev scope)
 
 ### TASK-3 delivery
 - Backend `init_db()` rozszerzony o pelny schemat RAW i indeksy.
@@ -15,3 +18,5 @@
 - Uruchomienie testow integracyjnych z realnym PostgreSQL dla scenariuszy:
   - `TC-DB-RAW-UNIQUE-CHECKSUM-001`
   - `TC-DB-RAW-COMPAT-001`
+  - `TC-EXT-METRICS-IMPORT-001`
+  - `TC-EXT-METRICS-IDEMPOTENCY-001`

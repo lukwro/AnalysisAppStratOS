@@ -154,3 +154,48 @@ def test_do_get_raw_records_returns_400_for_invalid_nip() -> None:
     assert captured["status"] == 400
     payload = json.loads(captured["body"].decode("utf-8"))
     assert payload["message"] == "NIP musi miec dokladnie 10 cyfr."
+
+
+def test_do_get_raw_records_returns_empty_list_for_valid_nip(monkeypatch) -> None:
+    monkeypatch.setattr(main, "fetch_raw_records_by_nip", lambda _nip: [])
+    handler, captured = _build_get_handler("/api/raw-records?nip=9999999999")
+
+    handler.do_GET()
+
+    assert captured["status"] == 200
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert payload["nip"] == "9999999999"
+    assert payload["records"] == []
+
+
+def test_do_post_external_metrics_import_returns_200(monkeypatch) -> None:
+    monkeypatch.setattr(
+        main,
+        "import_external_metrics",
+        lambda payload: {"batch_id": "b1", "inserted": 1, "skipped_duplicates": 0, "errors": 0},
+    )
+    handler, captured = _build_post_handler(
+        "/api/external/metrics/import",
+        {"page": 1, "page_size": 20, "nip": "1234563218"},
+    )
+
+    handler.do_POST()
+
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert captured["status"] == 200
+    assert payload["batch_id"] == "b1"
+    assert payload["inserted"] == 1
+
+
+def test_do_post_external_metrics_import_returns_502_for_external_error(monkeypatch) -> None:
+    def raise_external_error(_payload):
+        raise main.ExternalMetricsError(401, "External API returned status 401.")
+
+    monkeypatch.setattr(main, "import_external_metrics", raise_external_error)
+    handler, captured = _build_post_handler("/api/external/metrics/import", {"page": 1})
+
+    handler.do_POST()
+
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert captured["status"] == 502
+    assert "401" in payload["message"]
