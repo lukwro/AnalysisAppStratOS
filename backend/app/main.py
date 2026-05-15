@@ -6,10 +6,10 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .company import CompanyValidationError, create_company_record, save_company_record
+from .company import CompanyValidationError, create_company_record
+from .db import init_db, insert_company
 
 
-DATA_FILE = Path(__file__).resolve().parents[1] / "data" / "company.json"
 FRONTEND_FILE = Path(__file__).resolve().parents[2] / "frontend" / "index.html"
 
 
@@ -47,18 +47,26 @@ class CompanyHandler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(body.decode("utf-8"))
             record = create_company_record(payload.get("name"))
-            save_company_record(record, DATA_FILE)
         except json.JSONDecodeError:
             self._json_response(HTTPStatus.BAD_REQUEST, {"message": "Niepoprawny JSON."})
             return
         except CompanyValidationError as exc:
             self._json_response(HTTPStatus.BAD_REQUEST, {"message": str(exc)})
             return
+        try:
+            insert_company(record.name)
+        except Exception:
+            self._json_response(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"message": "Blad zapisu do bazy danych."},
+            )
+            return
 
         self._json_response(HTTPStatus.CREATED, {"name": record.name})
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+    init_db()
     server = ThreadingHTTPServer((host, port), CompanyHandler)
     print(f"Server listening at http://{host}:{port}")
     server.serve_forever()

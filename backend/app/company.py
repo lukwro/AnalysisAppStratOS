@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 
@@ -34,9 +32,3 @@ def validate_company_name(name: Any) -> str:
 
 def create_company_record(name: Any) -> CompanyRecord:
     return CompanyRecord(name=validate_company_name(name))
-
-
-def save_company_record(record: CompanyRecord, storage_path: Path) -> None:
-    storage_path.parent.mkdir(parents=True, exist_ok=True)
-    data = {"name": record.name}
-    storage_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")

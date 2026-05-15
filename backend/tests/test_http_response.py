@@ -1,5 +1,7 @@
 import json
+from io import BytesIO
 
+from backend.app import main
 from backend.app.main import CompanyHandler
 
 
@@ -39,3 +41,62 @@ def test_json_response_formats_payload_and_headers() -> None:
     assert captured["status"] == 201
     assert captured["headers"]["Content-Type"].startswith("application/json")
     assert json.loads(captured["body"].decode("utf-8")) == {"name": "ABC"}
+
+
+def _build_post_handler(path: str, payload: dict):
+    handler = _FakeHandler.__new__(_FakeHandler)
+    captured = {}
+    raw_body = json.dumps(payload).encode("utf-8")
+
+    def send_response(code):
+        captured["status"] = code
+
+    def send_header(name, value):
+        captured.setdefault("headers", {})[name] = value
+
+    def end_headers():
+        captured["ended"] = True
+
+    class _Writer:
+        def write(self, data):
+            captured["body"] = data
+
+    handler.path = path
+    handler.headers = {"Content-Length": str(len(raw_body))}
+    handler.rfile = BytesIO(raw_body)
+    handler.wfile = _Writer()
+    handler.send_response = send_response
+    handler.send_header = send_header
+    handler.end_headers = end_headers
+    return handler, captured
+
+
+def test_do_post_persists_company_and_returns_201(monkeypatch) -> None:
+    inserted = {}
+
+    def fake_insert_company(name: str) -> None:
+        inserted["name"] = name
+
+    monkeypatch.setattr(main, "insert_company", fake_insert_company)
+    handler, captured = _build_post_handler("/api/company", {"name": " Firma Testowa SA "})
+
+    handler.do_POST()
+
+    assert captured["status"] == 201
+    assert inserted["name"] == "Firma Testowa SA"
+    assert json.loads(captured["body"].decode("utf-8")) == {"name": "Firma Testowa SA"}
+
+
+def test_do_post_returns_500_when_db_insert_fails(monkeypatch) -> None:
+    def failing_insert_company(_name: str) -> None:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(main, "insert_company", failing_insert_company)
+    handler, captured = _build_post_handler("/api/company", {"name": "Firma Testowa SA"})
+
+    handler.do_POST()
+
+    assert captured["status"] == 500
+    assert json.loads(captured["body"].decode("utf-8")) == {
+        "message": "Blad zapisu do bazy danych."
+    }

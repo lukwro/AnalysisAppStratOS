@@ -1,27 +1,45 @@
 # AnalysisAppStratOS
 
-Minimalna aplikacja pod kolejne taski: formularz nazwy firmy + API zapisu.
+Minimalna aplikacja: formularz nazwy firmy + API zapisu do PostgreSQL.
+
+## Wymagania
+- Docker + Docker Compose
+- Python 3.11+
 
 ## Lokalnie
 
-1. Zainstaluj zaleznosci:
+1. Uruchom PostgreSQL:
+`docker compose up -d postgres`
+
+2. Zainstaluj zaleznosci:
 `pip install -r requirements.txt`
-2. Uruchom backend (serwuje tez frontend):
+
+3. Ustaw zmienne srodowiskowe (PowerShell):
+`$env:DB_HOST='127.0.0.1'`
+`$env:DB_PORT='5432'`
+`$env:DB_NAME='analysis_app'`
+`$env:DB_USER='analysis_user'`
+`$env:DB_PASSWORD='analysis_pass'`
+
+4. Uruchom backend (serwuje tez frontend):
 `python -m backend.app.main`
-3. Otworz:
+
+5. Otworz:
 `http://127.0.0.1:8000`
+
+## Testy
+`python -m pytest -q`
 
 ## Deploy na Railway
 
 1. Wrzuc repo na GitHub.
 2. W Railway wybierz `New Project` -> `Deploy from GitHub repo`.
-3. Railway wykryje `railway.toml` i uruchomi komenda:
+3. Dodaj Postgres plugin w Railway.
+4. Ustaw zmienne `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` na wartosci z Railway Postgres.
+5. Railway uruchomi aplikacje komenda:
 `python -m backend.app.main`
-4. Aplikacja nasluchuje na porcie z `PORT` (ustawiany automatycznie przez Railway).
-5. Po deployu otworz wygenerowany URL Railway.
 
-## Struktura deploy
-
-- `railway.toml` - konfiguracja build/deploy
-- `Procfile` - fallback komendy startowej
-- `requirements.txt` - zaleznosci Pythona
+## Pliki deploy
+- `railway.toml`
+- `Procfile`
+- `requirements.txt`
