@@ -172,7 +172,15 @@ def test_do_post_external_metrics_import_returns_200(monkeypatch) -> None:
     monkeypatch.setattr(
         main,
         "import_external_metrics",
-        lambda payload: {"batch_id": "b1", "inserted": 1, "skipped_duplicates": 0, "errors": 0},
+        lambda payload: {
+            "batch_id": "b1",
+            "inserted": 1,
+            "skipped_duplicates": 0,
+            "errors": 0,
+            "page": 1,
+            "page_size": 20,
+            "total": 1,
+        },
     )
     handler, captured = _build_post_handler(
         "/api/external/metrics/import",
@@ -185,6 +193,23 @@ def test_do_post_external_metrics_import_returns_200(monkeypatch) -> None:
     assert captured["status"] == 200
     assert payload["batch_id"] == "b1"
     assert payload["inserted"] == 1
+    assert payload["page"] == 1
+    assert payload["page_size"] == 20
+    assert payload["total"] == 1
+
+
+def test_do_post_external_metrics_import_returns_400_for_bad_request(monkeypatch) -> None:
+    def raise_external_error(_payload):
+        raise main.ExternalMetricsError(400, "Parametr 'page' musi byc >= 1.")
+
+    monkeypatch.setattr(main, "import_external_metrics", raise_external_error)
+    handler, captured = _build_post_handler("/api/external/metrics/import", {"page": 0})
+
+    handler.do_POST()
+
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert captured["status"] == 400
+    assert "page" in payload["message"]
 
 
 def test_do_post_external_metrics_import_returns_502_for_external_error(monkeypatch) -> None:

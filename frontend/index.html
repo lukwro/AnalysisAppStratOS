@@ -11,6 +11,7 @@
     input { width: 70%; }
     button { cursor: pointer; }
     .error { color: #b00020; margin-top: .75rem; }
+    .status { margin-top: .75rem; color: #1f2937; }
     table { margin-top: 1rem; border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #d8dbe2; padding: .5rem; text-align: left; }
     th { background: #eef2f7; }
@@ -42,7 +43,9 @@
       <label for="nip-input">NIP</label><br />
       <input id="nip-input" name="nip" type="text" maxlength="20" required />
       <button type="submit">Pobierz raw_records</button>
+      <button id="import-button" type="button">Pobierz dane finansowe</button>
     </form>
+    <div id="import-status" class="status" role="status"></div>
 
     <table id="raw-table" hidden>
       <thead>
@@ -60,6 +63,8 @@
     const resultName = document.getElementById('result-name');
     const nipForm = document.getElementById('nip-form');
     const nipInput = document.getElementById('nip-input');
+    const importButton = document.getElementById('import-button');
+    const importStatus = document.getElementById('import-status');
     const rawTable = document.getElementById('raw-table');
     const rawHeadRow = document.getElementById('raw-head-row');
     const rawBody = document.getElementById('raw-body');
@@ -72,6 +77,58 @@
         return JSON.stringify(value);
       }
       return String(value);
+    }
+
+    function renderRawRecords(records) {
+      rawTable.hidden = true;
+      rawHeadRow.innerHTML = '';
+      rawBody.innerHTML = '';
+
+      if (!Array.isArray(records) || records.length === 0) {
+        throw new Error('Brak danych RAW dla podanego NIP.');
+      }
+
+      const columns = Array.from(
+        records.reduce((acc, row) => {
+          Object.keys(row).forEach((key) => acc.add(key));
+          return acc;
+        }, new Set())
+      );
+
+      columns.forEach((column) => {
+        const th = document.createElement('th');
+        th.textContent = column;
+        rawHeadRow.appendChild(th);
+      });
+
+      records.forEach((record) => {
+        const tr = document.createElement('tr');
+        columns.forEach((column) => {
+          const td = document.createElement('td');
+          td.textContent = normalizeCellValue(record[column]);
+          tr.appendChild(td);
+        });
+        rawBody.appendChild(tr);
+      });
+
+      rawTable.hidden = false;
+    }
+
+    function normalizeNip(rawValue) {
+      const normalizedNip = (rawValue || '').replace(/\D/g, '');
+      if (normalizedNip.length !== 10) {
+        throw new Error('NIP musi miec dokladnie 10 cyfr.');
+      }
+      return normalizedNip;
+    }
+
+    async function loadRawRecordsByNip(normalizedNip) {
+      const response = await fetch(`/api/raw-records?nip=${encodeURIComponent(normalizedNip)}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.message || 'Wystapil blad odczytu.');
+      }
+      renderRawRecords(payload.records);
     }
 
     form.addEventListener('submit', async (event) => {
@@ -101,52 +158,40 @@
     nipForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       errorBox.textContent = '';
-      rawTable.hidden = true;
-      rawHeadRow.innerHTML = '';
-      rawBody.innerHTML = '';
+      importStatus.textContent = '';
 
       try {
-        const normalizedNip = (nipInput.value || '').replace(/\D/g, '');
-        if (normalizedNip.length !== 10) {
-          throw new Error('NIP musi miec dokladnie 10 cyfr.');
-        }
-
-        const response = await fetch(`/api/raw-records?nip=${encodeURIComponent(normalizedNip)}`);
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.message || 'Wystapil blad odczytu.');
-        }
-
-        const records = Array.isArray(payload.records) ? payload.records : [];
-        if (records.length === 0) {
-          throw new Error('Brak danych RAW dla podanego NIP.');
-        }
-
-        const columns = Array.from(
-          records.reduce((acc, row) => {
-            Object.keys(row).forEach((key) => acc.add(key));
-            return acc;
-          }, new Set())
-        );
-
-        columns.forEach((column) => {
-          const th = document.createElement('th');
-          th.textContent = column;
-          rawHeadRow.appendChild(th);
-        });
-
-        records.forEach((record) => {
-          const tr = document.createElement('tr');
-          columns.forEach((column) => {
-            const td = document.createElement('td');
-            td.textContent = normalizeCellValue(record[column]);
-            tr.appendChild(td);
-          });
-          rawBody.appendChild(tr);
-        });
-
-        rawTable.hidden = false;
+        const normalizedNip = normalizeNip(nipInput.value);
+        await loadRawRecordsByNip(normalizedNip);
       } catch (error) {
+        errorBox.textContent = error.message;
+      }
+    });
+
+    importButton.addEventListener('click', async () => {
+      errorBox.textContent = '';
+      importStatus.textContent = '';
+
+      try {
+        const normalizedNip = normalizeNip(nipInput.value);
+        importStatus.textContent = 'Import w toku... (loading)';
+
+        const importResponse = await fetch('/api/external/metrics/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1, page_size: 20, nip: normalizedNip })
+        });
+        const importPayload = await importResponse.json();
+        if (!importResponse.ok) {
+          throw new Error(importPayload.message || 'Blad importu danych finansowych.');
+        }
+
+        importStatus.textContent =
+          `Import zakonczony (success). status=completed, batch_id=${importPayload.batch_id}, inserted=${importPayload.inserted}, skipped_duplicates=${importPayload.skipped_duplicates}, errors=${importPayload.errors}`;
+
+        await loadRawRecordsByNip(normalizedNip);
+      } catch (error) {
+        importStatus.textContent = 'Import zakonczony bledem (error).';
         errorBox.textContent = error.message;
       }
     });

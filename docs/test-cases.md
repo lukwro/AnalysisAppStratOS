@@ -463,3 +463,80 @@ Widoczny komunikat: `Brak danych RAW dla podanego NIP.`.
 Tabela wynikowa nie jest widoczna.
 
 Status: TODO
+
+
+[TC-UI-EXT-IMPORT-001] UI uruchamia import i pokazuje status sukcesu
+Cel:
+Weryfikacja, że przycisk importu uruchamia pobranie danych i pokazuje status sukcesu.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+External API zwraca poprawną odpowiedź.
+
+Kroki:
+1. Wpisz poprawny NIP.
+2. Kliknij przycisk importu danych finansowych.
+
+Oczekiwany rezultat:
+Widoczny stan `loading`, a po zakończeniu stan `success`.
+UI pokazuje informację, że dane zostały pobrane.
+
+Status: TODO
+
+
+[TC-UI-EXT-IMPORT-002] UI pokazuje błąd importu
+Cel:
+Weryfikacja obsługi błędu po kliknięciu przycisku importu.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+External API zwraca błąd (np. `401` lub `500`).
+
+Kroki:
+1. Wpisz poprawny NIP.
+2. Kliknij przycisk importu danych finansowych.
+
+Oczekiwany rezultat:
+Widoczny stan `error`.
+UI pokazuje czytelny komunikat błędu.
+UI nie pokazuje informacji o sukcesie.
+
+Status: TODO
+
+
+[TC-API-EXT-IMPORT-003] API importu zwraca status i metryki wykonania
+Cel:
+Weryfikacja kontraktu odpowiedzi endpointu importu.
+
+Warunki wstępne:
+Backend uruchomiony.
+External API dostępne.
+
+Kroki:
+1. Wywołaj `POST /api/external/metrics/import` z poprawnymi parametrami.
+
+Oczekiwany rezultat:
+Status HTTP `200`.
+Body zawiera: `batch_id`, `inserted`, `skipped_duplicates`, `errors`, `page`, `page_size`, `total`.
+
+Status: TODO
+
+
+[TC-UI-EXT-IMPORT-RAW-001] Po sukcesie importu UI odświeża i pokazuje RAW data
+Cel:
+Weryfikacja pełnego flow: import -> odświeżenie -> podgląd `raw_records`.
+
+Warunki wstępne:
+Frontend i backend uruchomione.
+Dla podanego NIP import zwraca dane.
+
+Kroki:
+1. Wpisz NIP.
+2. Kliknij przycisk importu danych finansowych.
+3. Poczekaj na zakończenie operacji.
+
+Oczekiwany rezultat:
+UI pokazuje status sukcesu importu.
+Tabela `raw_records` jest odświeżona i zawiera nowe/pobrane dane.
+
+Status: TODO
