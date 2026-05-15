@@ -6,11 +6,15 @@ import psycopg
 
 
 def get_db_connection() -> psycopg.Connection:
-    host = os.environ.get("DB_HOST", "127.0.0.1")
-    port = os.environ.get("DB_PORT", "5432")
-    dbname = os.environ.get("DB_NAME", "analysis_app")
-    user = os.environ.get("DB_USER", "analysis_user")
-    password = os.environ.get("DB_PASSWORD", "analysis_pass")
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return psycopg.connect(database_url)
+
+    host = os.environ.get("DB_HOST") or os.environ.get("PGHOST", "127.0.0.1")
+    port = os.environ.get("DB_PORT") or os.environ.get("PGPORT", "5432")
+    dbname = os.environ.get("DB_NAME") or os.environ.get("PGDATABASE", "analysis_app")
+    user = os.environ.get("DB_USER") or os.environ.get("PGUSER", "analysis_user")
+    password = os.environ.get("DB_PASSWORD") or os.environ.get("PGPASSWORD", "analysis_pass")
 
     conn_string = (
         f"host={host} port={port} dbname={dbname} user={user} password={password}"

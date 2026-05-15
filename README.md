@@ -35,8 +35,9 @@ Minimalna aplikacja: formularz nazwy firmy + API zapisu do PostgreSQL.
 1. Wrzuc repo na GitHub.
 2. W Railway wybierz `New Project` -> `Deploy from GitHub repo`.
 3. Dodaj Postgres plugin w Railway.
-4. Ustaw zmienne `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` na wartosci z Railway Postgres.
-5. Railway uruchomi aplikacje komenda:
+4. Polacz backend z usluga Postgres (Reference/Variables). Najprosciej ustawic `DATABASE_URL` z Railway Postgres.
+5. Alternatywnie aplikacja obsluzy tez `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`.
+6. Railway uruchomi aplikacje komenda:
 `python -m backend.app.main`
 
 ## Pliki deploy
