@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import traceback
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -80,6 +81,7 @@ class CompanyHandler(BaseHTTPRequestHandler):
                 self._json_response(status, {"message": str(exc), "details": exc.details})
                 return
             except Exception:
+                traceback.print_exc()
                 self._json_response(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {"message": "Blad importu metryk z external API."},

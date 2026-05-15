@@ -200,4 +200,6 @@ def test_insert_raw_record_json_uses_on_conflict_do_nothing(monkeypatch):
 
     assert inserted is True
     executed_sql = "\n".join(fake_conn.cursor_obj.executed)
-    assert "ON CONFLICT (source_app_id, checksum_sha256) DO NOTHING" in executed_sql
+    assert "ON CONFLICT (source_app_id, checksum_sha256)" in executed_sql
+    assert "WHERE checksum_sha256 IS NOT NULL" in executed_sql
+    assert "DO NOTHING" in executed_sql

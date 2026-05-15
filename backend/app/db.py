@@ -357,7 +357,9 @@ def insert_raw_record_json(
                     collected_at
                 )
                 VALUES (%s, %s, %s, %s, %s, 'application/json', 'json', %s, %s, %s, now())
-                ON CONFLICT (source_app_id, checksum_sha256) DO NOTHING
+                ON CONFLICT (source_app_id, checksum_sha256)
+                WHERE checksum_sha256 IS NOT NULL
+                DO NOTHING
                 RETURNING id
                 """,
                 (

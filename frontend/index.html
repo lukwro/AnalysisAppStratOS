@@ -79,12 +79,16 @@
       return String(value);
     }
 
-    function renderRawRecords(records) {
+    function renderRawRecords(records, options = {}) {
+      const { allowEmpty = false } = options;
       rawTable.hidden = true;
       rawHeadRow.innerHTML = '';
       rawBody.innerHTML = '';
 
       if (!Array.isArray(records) || records.length === 0) {
+        if (allowEmpty) {
+          return false;
+        }
         throw new Error('Brak danych RAW dla podanego NIP.');
       }
 
@@ -112,6 +116,7 @@
       });
 
       rawTable.hidden = false;
+      return true;
     }
 
     function normalizeNip(rawValue) {
@@ -122,13 +127,13 @@
       return normalizedNip;
     }
 
-    async function loadRawRecordsByNip(normalizedNip) {
+    async function loadRawRecordsByNip(normalizedNip, options = {}) {
       const response = await fetch(`/api/raw-records?nip=${encodeURIComponent(normalizedNip)}`);
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.message || 'Wystapil blad odczytu.');
       }
-      renderRawRecords(payload.records);
+      return renderRawRecords(payload.records, options);
     }
 
     form.addEventListener('submit', async (event) => {
@@ -189,7 +194,10 @@
         importStatus.textContent =
           `Import zakonczony (success). status=completed, batch_id=${importPayload.batch_id}, inserted=${importPayload.inserted}, skipped_duplicates=${importPayload.skipped_duplicates}, errors=${importPayload.errors}`;
 
-        await loadRawRecordsByNip(normalizedNip);
+        const hasRawData = await loadRawRecordsByNip(normalizedNip, { allowEmpty: true });
+        if (!hasRawData) {
+          errorBox.textContent = 'Import zakonczony poprawnie, ale brak danych RAW dla podanego NIP.';
+        }
       } catch (error) {
         importStatus.textContent = 'Import zakonczony bledem (error).';
         errorBox.textContent = error.message;
