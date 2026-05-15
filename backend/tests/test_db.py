@@ -58,3 +58,76 @@ def test_get_db_connection_falls_back_to_pg_env_vars(monkeypatch):
     assert "port=6432" in captured["conn_string"]
     assert "dbname=pgdb" in captured["conn_string"]
     assert "user=pguser" in captured["conn_string"]
+
+
+class _FakeCursor:
+    def __init__(self) -> None:
+        self.executed: list[str] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def execute(self, statement: str, _params=None) -> None:
+        self.executed.append(statement)
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.cursor_obj = _FakeCursor()
+        self.committed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def cursor(self) -> _FakeCursor:
+        return self.cursor_obj
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+def test_init_db_creates_companies_and_raw_schema(monkeypatch):
+    fake_conn = _FakeConnection()
+
+    def fake_get_db_connection():
+        return fake_conn
+
+    monkeypatch.setattr(db, "get_db_connection", fake_get_db_connection)
+
+    db.init_db()
+
+    executed_sql = "\n".join(fake_conn.cursor_obj.executed)
+    assert "CREATE TABLE IF NOT EXISTS companies" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS source_apps" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS data_sources" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS ingestion_batches" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS raw_records" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS raw_record_files" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS raw_record_errors" in executed_sql
+    assert "CREATE TABLE IF NOT EXISTS raw_processing_runs" in executed_sql
+    assert fake_conn.committed is True
+
+
+def test_raw_schema_contains_payload_constraint():
+    ddl = "\n".join(db.RAW_SCHEMA_STATEMENTS)
+    assert "CONSTRAINT chk_raw_payload_presence CHECK" in ddl
+    assert "payload_text IS NOT NULL" in ddl
+    assert "payload_json IS NOT NULL" in ddl
+    assert "file_storage_uri IS NOT NULL" in ddl
+
+
+def test_raw_schema_contains_critical_indexes():
+    ddl = "\n".join(db.RAW_SCHEMA_STATEMENTS)
+    assert "idx_raw_records_source_time" in ddl
+    assert "idx_raw_records_type_time" in ddl
+    assert "idx_raw_records_processing_status" in ddl
+    assert "idx_raw_records_external" in ddl
+    assert "uq_raw_records_checksum_source" in ddl
+    assert "idx_raw_records_payload_json_gin" in ddl
+    assert "idx_raw_records_metadata_json_gin" in ddl

@@ -110,3 +110,63 @@ Status: DONE
 
 Powiązane test case’y:
 TC-DB-CONNECT-001, TC-DB-INSERT-COMPANY-001, TC-API-COMPANY-DB-001, TC-DB-ERROR-001
+
+
+[TASK-3] Warstwa RAW danych z systemów zewnętrznych
+
+Cel biznesowy:
+Aplikacja posiada trwałą warstwę RAW do zapisu nieprzetworzonych danych z wielu źródeł, tak aby umożliwić audyt, deduplikację i wielokrotne przetwarzanie.
+
+Zakres:
+
+- Rozszerzenie inicjalizacji bazy o schemat RAW.
+- Utworzenie tabel:
+  - `source_apps`,
+  - `data_sources`,
+  - `ingestion_batches`,
+  - `raw_records`,
+  - `raw_record_files`,
+  - `raw_record_errors`,
+  - `raw_processing_runs`.
+- Dodanie indeksów wspierających wyszukiwanie i skalę:
+  - indeksy czasowe i statusowe dla `raw_records`,
+  - indeks po `external_id`,
+  - unikalny indeks checksum per source,
+  - indeksy GIN dla `payload_json` i `metadata_json`.
+- Dodanie constraintu walidującego obecność payloadu (`payload_text` lub `payload_json` lub `file_storage_uri`).
+- Zachowanie kompatybilności z istniejącą tabelą `companies`.
+
+Minimalny zakres danych do odczytu:
+
+- Identyfikacja źródła (`source_app_id`, `data_source_id`),
+- status ingestu/przetwarzania,
+- dane payloadu (`payload_text`, `payload_json`, `file_storage_uri`),
+- metadane i znaczniki czasu.
+
+Poza zakresem:
+
+- Endpointy API do zapisu/odczytu RAW.
+- Proces ETL do warstwy CORE/FACTS.
+- Walidacja semantyczna payloadów per źródło.
+
+Kryteria akceptacji (AC):
+
+- [x] `init_db()` tworzy wszystkie tabele warstwy RAW, jeśli nie istnieją.
+- [x] Tworzone są kluczowe indeksy dla `raw_records`.
+- [x] Constraint `chk_raw_payload_presence` jest obecny.
+- [x] Dotychczasowa funkcjonalność `companies` pozostaje bez regresji na poziomie schematu.
+- [x] Udokumentowane test case’y dla nowej warstwy RAW.
+
+Definition of Done (DoD):
+
+- [x] Kod backendu rozszerzony o DDL RAW
+- [x] Inicjalizacja DB uruchamia DDL RAW
+- [x] Aktualizacja dokumentacji schematu (`docs/dbstructure.md`)
+- [x] Aktualizacja backlogu
+- [x] Aktualizacja test case’ów
+- [ ] Review/merge
+
+Status: DONE (dev scope)
+
+Powiązane test case’y:
+TC-DB-RAW-INIT-001, TC-DB-RAW-CONSTRAINT-001, TC-DB-RAW-INDEX-001, TC-DB-RAW-UNIQUE-CHECKSUM-001, TC-DB-RAW-COMPAT-001

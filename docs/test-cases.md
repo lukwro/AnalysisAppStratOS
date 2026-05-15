@@ -143,3 +143,101 @@ Komunikat API: "Blad zapisu do bazy danych.".
 Frontend pokazuje czytelny komunikat błędu.
 
 Status: PASS
+
+
+[TC-DB-RAW-INIT-001] Inicjalizacja tworzy tabele warstwy RAW
+Cel:
+Weryfikacja, że `init_db()` tworzy wszystkie tabele RAW.
+
+Warunki wstępne:
+PostgreSQL uruchomiony.
+Backend ma dostęp do DB.
+
+Kroki:
+1. Uruchom backend (wywołanie `init_db()`).
+2. Sprawdź obecność tabel: `source_apps`, `data_sources`, `ingestion_batches`, `raw_records`, `raw_record_files`, `raw_record_errors`, `raw_processing_runs`.
+
+Oczekiwany rezultat:
+Wszystkie wskazane tabele istnieją w bazie.
+
+Status: TODO
+
+
+[TC-DB-RAW-CONSTRAINT-001] Constraint payloadu w raw_records
+Cel:
+Weryfikacja działania constraintu `chk_raw_payload_presence`.
+
+Warunki wstępne:
+Tabela `raw_records` istnieje.
+Istnieje poprawny rekord w `source_apps`.
+
+Kroki:
+1. Spróbuj wstawić rekord do `raw_records` bez `payload_text`, `payload_json` i `file_storage_uri`.
+2. Spróbuj wstawić rekord z przynajmniej jednym polem payloadu.
+
+Oczekiwany rezultat:
+Pierwszy insert kończy się błędem constraintu.
+Drugi insert kończy się powodzeniem.
+
+Status: TODO
+
+
+[TC-DB-RAW-INDEX-001] Krytyczne indeksy raw_records istnieją
+Cel:
+Weryfikacja utworzenia indeksów wydajnościowych.
+
+Warunki wstępne:
+`init_db()` wykonane.
+
+Kroki:
+1. Odczytaj metadane indeksów dla tabeli `raw_records`.
+2. Zweryfikuj obecność:
+   - `idx_raw_records_source_time`,
+   - `idx_raw_records_type_time`,
+   - `idx_raw_records_processing_status`,
+   - `idx_raw_records_external`,
+   - `idx_raw_records_payload_json_gin`,
+   - `idx_raw_records_metadata_json_gin`.
+
+Oczekiwany rezultat:
+Wszystkie indeksy istnieją z oczekiwanymi nazwami.
+
+Status: TODO
+
+
+[TC-DB-RAW-UNIQUE-CHECKSUM-001] Unikalność checksum per source
+Cel:
+Weryfikacja unikalnego indeksu `uq_raw_records_checksum_source`.
+
+Warunki wstępne:
+Istnieje `source_app_id`.
+Tabela `raw_records` istnieje.
+
+Kroki:
+1. Wstaw rekord `raw_records` z `source_app_id=A` i `checksum_sha256=X`.
+2. Spróbuj wstawić drugi rekord z `source_app_id=A` i `checksum_sha256=X`.
+3. Wstaw rekord z innym `source_app_id=B` i `checksum_sha256=X`.
+
+Oczekiwany rezultat:
+Krok 2 kończy się błędem unikalności.
+Krok 3 kończy się powodzeniem.
+
+Status: TODO
+
+
+[TC-DB-RAW-COMPAT-001] Kompatybilność z istniejącą tabelą companies
+Cel:
+Weryfikacja braku regresji po dodaniu schematu RAW.
+
+Warunki wstępne:
+Backend uruchomiony z nowym `init_db()`.
+
+Kroki:
+1. Wyślij `POST /api/company` z poprawną nazwą firmy.
+2. Odczytaj rekord z tabeli `companies`.
+
+Oczekiwany rezultat:
+API zwraca `201`.
+Rekord jest poprawnie zapisany w `companies`.
+
+Status: TODO
