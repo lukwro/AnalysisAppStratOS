@@ -190,6 +190,44 @@ RAW_SCHEMA_STATEMENTS = [
     WHERE metadata_json <> '{}'::jsonb
     """,
     """
+    UPDATE raw_records
+    SET
+        raw_label = COALESCE(raw_label, NULLIF(payload_json->>'metric_name', ''), 'value'),
+        raw_value_number = COALESCE(
+            raw_value_number,
+            CASE
+                WHEN payload_json ? 'value' AND jsonb_typeof(payload_json->'value') = 'number'
+                THEN (payload_json->>'value')::numeric
+                ELSE NULL
+            END
+        ),
+        raw_value_text = COALESCE(
+            raw_value_text,
+            CASE
+                WHEN payload_json ? 'value' AND jsonb_typeof(payload_json->'value') = 'string'
+                THEN payload_json->>'value'
+                ELSE NULL
+            END
+        ),
+        raw_value_boolean = COALESCE(
+            raw_value_boolean,
+            CASE
+                WHEN payload_json ? 'value' AND jsonb_typeof(payload_json->'value') = 'boolean'
+                THEN (payload_json->>'value')::boolean
+                ELSE NULL
+            END
+        ),
+        raw_value_json = COALESCE(
+            raw_value_json,
+            CASE
+                WHEN payload_json ? 'value' AND jsonb_typeof(payload_json->'value') IN ('object', 'array')
+                THEN payload_json->'value'
+                ELSE NULL
+            END
+        )
+    WHERE payload_json ? 'value'
+    """,
+    """
     CREATE TABLE IF NOT EXISTS raw_record_errors (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         raw_record_id UUID REFERENCES raw_records(id) ON DELETE CASCADE,
@@ -446,7 +484,7 @@ def insert_raw_record_json(
     raw_value_boolean: bool | None = None,
     raw_value_date: str | None = None,
     raw_value_timestamp: str | None = None,
-    raw_value_json: dict[str, Any] | None = None,
+    raw_value_json: Any | None = None,
 ) -> bool:
     with get_db_connection() as conn:
         with conn.cursor() as cur:

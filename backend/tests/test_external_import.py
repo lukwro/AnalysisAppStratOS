@@ -57,8 +57,8 @@ def test_import_external_metrics_success_with_duplicates(monkeypatch):
 
     result = external_import.import_external_metrics({"page": 1, "page_size": 20, "nip": "1234563218"})
 
-    assert result["inserted"] == 1
-    assert result["skipped_duplicates"] == 1
+    assert result["inserted"] == 7
+    assert result["skipped_duplicates"] == 7
     assert calls["finalized"]["status"] == "completed"
 
 

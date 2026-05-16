@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Iterator
 
 from . import db
 from .external_metrics import ExternalMetricsError, normalize_query, fetch_external_metrics
@@ -25,6 +25,46 @@ def _build_external_id(nip: str | None, item: dict[str, Any], page: int) -> str:
             str(page),
         ]
     )
+
+
+def _raw_value_parts(value: Any) -> dict[str, Any]:
+    parts: dict[str, Any] = {
+        "raw_value_text": None,
+        "raw_value_number": None,
+        "raw_value_boolean": None,
+        "raw_value_date": None,
+        "raw_value_timestamp": None,
+        "raw_value_json": None,
+    }
+    if isinstance(value, bool):
+        parts["raw_value_boolean"] = value
+    elif isinstance(value, (int, float)):
+        parts["raw_value_number"] = value
+    elif isinstance(value, str):
+        parts["raw_value_text"] = value
+    elif value is not None:
+        parts["raw_value_json"] = value
+    return parts
+
+
+def _atomic_fields(value: Any, prefix: str = "") -> Iterator[tuple[str, Any]]:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            label = f"{prefix}.{key}" if prefix else str(key)
+            yield from _atomic_fields(nested, label)
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            label = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            yield from _atomic_fields(nested, label)
+        return
+    label = prefix or "value"
+    yield (label, value)
+
+
+def _atomic_checksum(item_checksum: str, label: str, value: Any) -> str:
+    canonical = json.dumps({"label": label, "value": value}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(f"{item_checksum}:{canonical}".encode("utf-8")).hexdigest()
 
 
 def import_external_metrics(payload: dict[str, Any]) -> dict[str, Any]:
@@ -68,29 +108,32 @@ def import_external_metrics(payload: dict[str, Any]) -> dict[str, Any]:
                 )
                 continue
 
-            checksum = _item_checksum(item)
-            inserted = db.insert_raw_record_json(
-                source_app_id=source_app_id,
-                data_source_id=data_source_id,
-                ingestion_batch_id=batch_id,
-                external_id=_build_external_id(query.nip, item, query.page),
-                record_type="financial_metric",
-                payload_json=item,
-                checksum_sha256=checksum,
-                nip=query.nip,
-                year=query.year,
-                page=query.page,
-                page_size=query.page_size,
-                total=response.get("total"),
-                metric_group=item.get("metric_group"),
-                metric_name=item.get("metric_name"),
-                unit=item.get("unit"),
-                metric_status=item.get("status"),
-            )
-            if inserted:
-                inserted_count += 1
-            else:
-                skipped_duplicates += 1
+            item_checksum = _item_checksum(item)
+            for raw_label, raw_value in _atomic_fields(item):
+                inserted = db.insert_raw_record_json(
+                    source_app_id=source_app_id,
+                    data_source_id=data_source_id,
+                    ingestion_batch_id=batch_id,
+                    external_id=_build_external_id(query.nip, item, query.page),
+                    record_type="financial_metric",
+                    payload_json=item,
+                    checksum_sha256=_atomic_checksum(item_checksum, raw_label, raw_value),
+                    nip=query.nip,
+                    year=query.year,
+                    page=query.page,
+                    page_size=query.page_size,
+                    total=response.get("total"),
+                    metric_group=item.get("metric_group"),
+                    metric_name=item.get("metric_name"),
+                    unit=item.get("unit"),
+                    metric_status=item.get("status"),
+                    raw_label=raw_label,
+                    **_raw_value_parts(raw_value),
+                )
+                if inserted:
+                    inserted_count += 1
+                else:
+                    skipped_duplicates += 1
 
         final_metadata = {
             **asdict(query),
