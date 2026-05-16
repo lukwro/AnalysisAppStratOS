@@ -92,26 +92,63 @@
         throw new Error('Brak danych RAW dla podanego NIP.');
       }
 
-      const columns = Array.from(
-        records.reduce((acc, row) => {
-          Object.keys(row).forEach((key) => acc.add(key));
-          return acc;
-        }, new Set())
-      );
-
+      const columns = ['nazwa', 'typ', 'wartosc'];
       columns.forEach((column) => {
         const th = document.createElement('th');
         th.textContent = column;
         rawHeadRow.appendChild(th);
       });
 
+      function toRawEntity(record) {
+        const name =
+          record.raw_label ||
+          record.metric_name ||
+          record.title ||
+          record.record_type ||
+          'raw_value';
+
+        if (record.raw_value_number !== null && record.raw_value_number !== undefined) {
+          return { name, type: 'number', value: record.raw_value_number };
+        }
+        if (record.raw_value_text !== null && record.raw_value_text !== undefined) {
+          return { name, type: 'text', value: record.raw_value_text };
+        }
+        if (record.raw_value_boolean !== null && record.raw_value_boolean !== undefined) {
+          return { name, type: 'boolean', value: record.raw_value_boolean };
+        }
+        if (record.raw_value_date) {
+          return { name, type: 'date', value: record.raw_value_date };
+        }
+        if (record.raw_value_timestamp) {
+          return { name, type: 'timestamp', value: record.raw_value_timestamp };
+        }
+        if (record.raw_value_json !== null && record.raw_value_json !== undefined) {
+          return { name, type: 'json', value: normalizeCellValue(record.raw_value_json) };
+        }
+        if (record.payload_text) {
+          return { name, type: 'text', value: record.payload_text };
+        }
+        if (record.payload_json !== null && record.payload_json !== undefined) {
+          return { name, type: 'json', value: normalizeCellValue(record.payload_json) };
+        }
+        return { name, type: 'unknown', value: '' };
+      }
+
       records.forEach((record) => {
+        const raw = toRawEntity(record);
         const tr = document.createElement('tr');
-        columns.forEach((column) => {
-          const td = document.createElement('td');
-          td.textContent = normalizeCellValue(record[column]);
-          tr.appendChild(td);
-        });
+        const nameTd = document.createElement('td');
+        nameTd.textContent = normalizeCellValue(raw.name);
+        tr.appendChild(nameTd);
+
+        const typeTd = document.createElement('td');
+        typeTd.textContent = normalizeCellValue(raw.type);
+        tr.appendChild(typeTd);
+
+        const valueTd = document.createElement('td');
+        valueTd.textContent = normalizeCellValue(raw.value);
+        tr.appendChild(valueTd);
+
         rawBody.appendChild(tr);
       });
 

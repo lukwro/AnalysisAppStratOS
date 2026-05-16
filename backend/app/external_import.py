@@ -69,17 +69,6 @@ def import_external_metrics(payload: dict[str, Any]) -> dict[str, Any]:
                 continue
 
             checksum = _item_checksum(item)
-            metadata = {
-                "nip": query.nip,
-                "year": query.year,
-                "page": query.page,
-                "page_size": query.page_size,
-                "total": response.get("total"),
-                "metric_group": item.get("metric_group"),
-                "metric_name": item.get("metric_name"),
-                "unit": item.get("unit"),
-                "status": item.get("status"),
-            }
             inserted = db.insert_raw_record_json(
                 source_app_id=source_app_id,
                 data_source_id=data_source_id,
@@ -88,7 +77,15 @@ def import_external_metrics(payload: dict[str, Any]) -> dict[str, Any]:
                 record_type="financial_metric",
                 payload_json=item,
                 checksum_sha256=checksum,
-                metadata_json=metadata,
+                nip=query.nip,
+                year=query.year,
+                page=query.page,
+                page_size=query.page_size,
+                total=response.get("total"),
+                metric_group=item.get("metric_group"),
+                metric_name=item.get("metric_name"),
+                unit=item.get("unit"),
+                metric_status=item.get("status"),
             )
             if inserted:
                 inserted_count += 1

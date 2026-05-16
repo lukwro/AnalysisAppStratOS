@@ -133,9 +133,10 @@ def test_raw_schema_contains_critical_indexes():
     assert "idx_raw_records_type_time" in ddl
     assert "idx_raw_records_processing_status" in ddl
     assert "idx_raw_records_external" in ddl
+    assert "idx_raw_records_nip" in ddl
+    assert "idx_raw_records_metric_lookup" in ddl
     assert "uq_raw_records_checksum_source" in ddl
     assert "idx_raw_records_payload_json_gin" in ddl
-    assert "idx_raw_records_metadata_json_gin" in ddl
 
 
 def test_fetch_raw_records_by_nip_returns_rows(monkeypatch):
@@ -195,7 +196,15 @@ def test_insert_raw_record_json_uses_on_conflict_do_nothing(monkeypatch):
         record_type="financial_metric",
         payload_json={"metric_name": "Cash ratio"},
         checksum_sha256="abc123",
-        metadata_json={"page": 1},
+        nip="1234567890",
+        year=2024,
+        page=1,
+        page_size=20,
+        total=100,
+        metric_group="liquidity",
+        metric_name="Cash ratio",
+        unit="multiple",
+        metric_status="calculated",
     )
 
     assert inserted is True

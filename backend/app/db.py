@@ -79,6 +79,22 @@ RAW_SCHEMA_STATEMENTS = [
         source_url TEXT,
         payload_text TEXT,
         payload_json JSONB,
+        nip TEXT,
+        year INT,
+        page INT,
+        page_size INT,
+        total INT,
+        metric_group TEXT,
+        metric_name TEXT,
+        unit TEXT,
+        metric_status TEXT,
+        raw_label TEXT,
+        raw_value_text TEXT,
+        raw_value_number NUMERIC,
+        raw_value_boolean BOOLEAN,
+        raw_value_date DATE,
+        raw_value_timestamp TIMESTAMPTZ,
+        raw_value_json JSONB,
         file_storage_uri TEXT,
         file_name TEXT,
         file_size_bytes BIGINT,
@@ -110,6 +126,68 @@ RAW_SCHEMA_STATEMENTS = [
         checksum_sha256 TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS nip TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS year INT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS page INT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS page_size INT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS total INT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS metric_group TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS metric_name TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS unit TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS metric_status TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_label TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_value_text TEXT
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_value_number NUMERIC
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_value_boolean BOOLEAN
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_value_date DATE
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_value_timestamp TIMESTAMPTZ
+    """,
+    """
+    ALTER TABLE raw_records ADD COLUMN IF NOT EXISTS raw_value_json JSONB
+    """,
+    """
+    UPDATE raw_records
+    SET
+        nip = COALESCE(nip, NULLIF(regexp_replace(COALESCE(metadata_json->>'nip', ''), '\D', '', 'g'), '')),
+        year = COALESCE(year, NULLIF(metadata_json->>'year', '')::int),
+        page = COALESCE(page, NULLIF(metadata_json->>'page', '')::int),
+        page_size = COALESCE(page_size, NULLIF(metadata_json->>'page_size', '')::int),
+        total = COALESCE(total, NULLIF(metadata_json->>'total', '')::int),
+        metric_group = COALESCE(metric_group, NULLIF(metadata_json->>'metric_group', '')),
+        metric_name = COALESCE(metric_name, NULLIF(metadata_json->>'metric_name', '')),
+        unit = COALESCE(unit, NULLIF(metadata_json->>'unit', '')),
+        metric_status = COALESCE(metric_status, NULLIF(metadata_json->>'status', ''))
+    WHERE metadata_json <> '{}'::jsonb
     """,
     """
     CREATE TABLE IF NOT EXISTS raw_record_errors (
@@ -157,6 +235,11 @@ RAW_SCHEMA_STATEMENTS = [
         WHERE external_id IS NOT NULL
     """,
     """
+    CREATE INDEX IF NOT EXISTS idx_raw_records_nip
+        ON raw_records (nip, received_at DESC)
+        WHERE nip IS NOT NULL
+    """,
+    """
     CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_records_checksum_source
         ON raw_records (source_app_id, checksum_sha256)
         WHERE checksum_sha256 IS NOT NULL
@@ -166,8 +249,12 @@ RAW_SCHEMA_STATEMENTS = [
         ON raw_records USING GIN (payload_json)
     """,
     """
-    CREATE INDEX IF NOT EXISTS idx_raw_records_metadata_json_gin
-        ON raw_records USING GIN (metadata_json)
+    CREATE INDEX IF NOT EXISTS idx_raw_records_metric_lookup
+        ON raw_records (nip, metric_group, metric_name, year, received_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_raw_records_raw_lookup
+        ON raw_records (nip, record_type, raw_label, received_at DESC)
     """,
 ]
 
@@ -220,7 +307,7 @@ def fetch_raw_records_by_nip(nip: str) -> list[dict]:
                 """
                 SELECT *
                 FROM raw_records
-                WHERE regexp_replace(COALESCE(metadata_json->>'nip', ''), '\D', '', 'g') = %s
+                WHERE nip = %s
                    OR regexp_replace(COALESCE(external_id, ''), '\D', '', 'g') = %s
                 ORDER BY received_at DESC
                 """,
@@ -344,7 +431,22 @@ def insert_raw_record_json(
     record_type: str,
     payload_json: dict[str, Any],
     checksum_sha256: str,
-    metadata_json: dict[str, Any],
+    nip: str | None,
+    year: int | None,
+    page: int,
+    page_size: int,
+    total: int | None,
+    metric_group: str | None,
+    metric_name: str | None,
+    unit: str | None,
+    metric_status: str | None,
+    raw_label: str | None = None,
+    raw_value_text: str | None = None,
+    raw_value_number: float | None = None,
+    raw_value_boolean: bool | None = None,
+    raw_value_date: str | None = None,
+    raw_value_timestamp: str | None = None,
+    raw_value_json: dict[str, Any] | None = None,
 ) -> bool:
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -360,10 +462,29 @@ def insert_raw_record_json(
                     content_format,
                     payload_json,
                     checksum_sha256,
-                    metadata_json,
+                    nip,
+                    year,
+                    page,
+                    page_size,
+                    total,
+                    metric_group,
+                    metric_name,
+                    unit,
+                    metric_status,
+                    raw_label,
+                    raw_value_text,
+                    raw_value_number,
+                    raw_value_boolean,
+                    raw_value_date,
+                    raw_value_timestamp,
+                    raw_value_json,
                     collected_at
                 )
-                VALUES (%s, %s, %s, %s, %s, 'application/json', 'json', %s, %s, %s, now())
+                VALUES (
+                    %s, %s, %s, %s, %s, 'application/json', 'json', %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, now()
+                )
                 ON CONFLICT (source_app_id, checksum_sha256)
                 WHERE checksum_sha256 IS NOT NULL
                 DO NOTHING
@@ -377,7 +498,22 @@ def insert_raw_record_json(
                     record_type,
                     Jsonb(payload_json),
                     checksum_sha256,
-                    Jsonb(metadata_json),
+                    nip,
+                    year,
+                    page,
+                    page_size,
+                    total,
+                    metric_group,
+                    metric_name,
+                    unit,
+                    metric_status,
+                    raw_label,
+                    raw_value_text,
+                    raw_value_number,
+                    raw_value_boolean,
+                    raw_value_date,
+                    raw_value_timestamp,
+                    Jsonb(raw_value_json) if raw_value_json is not None else None,
                 ),
             )
             inserted = cur.fetchone() is not None
