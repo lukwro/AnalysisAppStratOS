@@ -5,6 +5,7 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 
 RAW_SCHEMA_STATEMENTS = [
@@ -297,7 +298,13 @@ def create_ingestion_batch(
                     metadata_json = EXCLUDED.metadata_json
                 RETURNING id
                 """,
-                (source_app_id, data_source_id, trigger_type, batch_key, metadata_json),
+                (
+                    source_app_id,
+                    data_source_id,
+                    trigger_type,
+                    batch_key,
+                    Jsonb(metadata_json),
+                ),
             )
             batch_id = cur.fetchone()[0]
         conn.commit()
@@ -323,7 +330,7 @@ def finalize_ingestion_batch(
                     metadata_json = %s
                 WHERE id = %s
                 """,
-                (status, record_count, error_count, metadata_json, batch_id),
+                (status, record_count, error_count, Jsonb(metadata_json), batch_id),
             )
         conn.commit()
 
@@ -368,9 +375,9 @@ def insert_raw_record_json(
                     ingestion_batch_id,
                     external_id,
                     record_type,
-                    payload_json,
+                    Jsonb(payload_json),
                     checksum_sha256,
-                    metadata_json,
+                    Jsonb(metadata_json),
                 ),
             )
             inserted = cur.fetchone() is not None
@@ -407,7 +414,7 @@ def insert_raw_record_error(
                     stage,
                     error_code,
                     error_message,
-                    error_details_json,
+                    Jsonb(error_details_json),
                 ),
             )
         conn.commit()
